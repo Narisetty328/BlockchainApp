@@ -13,7 +13,6 @@ from my_database import MyPersonalDatabase
 from my_mvrv_engine import MyMVRVEngine
 from btc_brain import BitcoinBrain
 import time
-from datetime import datetime
 
 # Page setup
 st.set_page_config(
@@ -36,6 +35,15 @@ st.markdown("""
         font-weight: bold;
         margin-bottom: 2rem;
         box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+    }
+    
+    .metric-container {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+        border-left: 4px solid #f5576c;
+        margin: 1rem 0;
     }
     
     .signal-card {
@@ -75,8 +83,6 @@ st.markdown("""
 def init_system():
     return MyPersonalDatabase(), MyMVRVEngine(), BitcoinBrain()
 
-
-
 my_db, my_engine, my_brain = init_system()
 
 # Header
@@ -86,20 +92,12 @@ st.markdown('<div class="main-title">₿ Bitcoin MVRV Analysis Dashboard</div>',
 st.sidebar.header("📊 Analysis Controls")
 
 # Time controls
-timeframe = st.sidebar.selectbox("📅 Timeframe", ["Last 7 Days", "Last 30 Days", "Last 90 Days"])
-chart_type = st.sidebar.selectbox("📊 Chart Style", ["Line Chart", "Area Chart"])
-
-# Show current selection
-st.sidebar.info(f"Current: {timeframe} | {chart_type}")
+timeframe = st.sidebar.selectbox("Timeframe", ["Last 7 Days", "Last 30 Days", "Last 90 Days"])
+chart_type = st.sidebar.selectbox("Chart Style", ["Line Chart", "Candlestick", "Area Chart"])
 
 # Map timeframe to days
 days_map = {"Last 7 Days": 7, "Last 30 Days": 30, "Last 90 Days": 90}
 selected_days = days_map[timeframe]
-
-auto_refresh = st.sidebar.checkbox("🔄 Auto-refresh (30s)", value=False)
-if auto_refresh:
-    time.sleep(30)
-    st.rerun()
 
 # Update controls
 col1, col2 = st.sidebar.columns(2)
@@ -114,9 +112,8 @@ with col2:
     if st.button("📊 Refresh"):
         st.rerun()
 
-# Get current insights from your system
+# Get current insights
 insights = my_engine.get_my_mvrv_insights()
-latest = my_db.get_my_latest_mvrv()
 
 if insights:
     # Current metrics with better layout
@@ -133,6 +130,7 @@ if insights:
         )
     
     with col2:
+        latest = my_db.get_my_latest_mvrv()
         if latest:
             st.metric(
                 "Market Cap",
@@ -175,80 +173,10 @@ if insights:
     """, unsafe_allow_html=True)
 
 # Enhanced Historical Analysis
-st.subheader(f"📊 Historical MVRV Analysis - {chart_type}")
+st.subheader("📊 Historical MVRV Analysis")
 
-# Show chart switching status
-col1, col2 = st.columns(2)
-with col1:
-    if chart_type == "Line Chart":
-        st.success("📈 Line Chart Active")
-        st.write("• Sharp lines with data points")
-        st.write("• Best for precise readings")
-    else:
-        st.info("📈 Line Chart Available")
-        
-with col2:
-    if chart_type == "Area Chart":
-        st.success("📊 Area Chart Active")
-        st.write("• Filled area visualization")
-        st.write("• Shows trend magnitude")
-    else:
-        st.info("📊 Area Chart Available")
-
-# Get historical data from your system
+# Get historical data
 history = my_db.get_my_mvrv_history('hourly', selected_days * 24)
-
-if not history:
-    st.error("📊 No MVRV data found in database!")
-    
-    # Show system status
-    st.subheader("🔧 System Status")
-    db_stats = my_db.get_my_database_stats()
-    
-    col1, col2 = st.columns(2)
-    with col1:
-        st.metric("Price Records", db_stats.get('my_price_tracking', 0))
-        st.metric("UTXO Records", db_stats.get('my_utxo_discoveries', 0))
-    
-    with col2:
-        st.metric("MVRV Records", db_stats.get('my_mvrv_analysis', 0))
-        st.metric("Historical Prices", db_stats.get('my_price_memory', 0))
-    
-    if st.button("🚀 Initialize System Now"):
-        with st.spinner("Collecting Bitcoin data and calculating MVRV..."):
-            try:
-                # Step 1: Collect current price data
-                st.info("Step 1: Fetching Bitcoin price...")
-                import requests
-                url = "https://api.coingecko.com/api/v3/coins/bitcoin"
-                response = requests.get(url, timeout=30)
-                data = response.json()
-                
-                price = data["market_data"]["current_price"]["usd"]
-                supply = data["market_data"]["circulating_supply"]
-                timestamp = datetime.utcnow().isoformat()
-                
-                # Store price data
-                my_db.store_my_price_discovery(timestamp, price, supply)
-                st.success(f"✅ Price: ${price:,.2f}, Supply: {supply:,.0f}")
-                
-                # Step 2: Run MVRV calculation
-                st.info("Step 2: Calculating MVRV...")
-                result = my_engine.run_my_hourly_analysis()
-                
-                if result:
-                    st.success("✅ System initialized! Refresh page to see charts.")
-                    st.balloons()
-                    time.sleep(2)
-                    st.rerun()
-                else:
-                    st.error("❌ MVRV calculation failed - check system logs")
-                    
-            except Exception as e:
-                st.error(f"❌ Initialization failed: {str(e)}")
-                st.code(f"Error details: {type(e).__name__}: {e}")
-else:
-    st.success(f"📊 Found {len(history)} MVRV records for {timeframe}")
 
 if history:
     df = pd.DataFrame(history)
@@ -261,11 +189,10 @@ if history:
         fig.add_trace(go.Scatter(
             x=df['timestamp'],
             y=df['ratio'],
-            mode='lines+markers',
+            mode='lines',
             name='MVRV Ratio',
             line=dict(color='#667eea', width=3),
-            marker=dict(size=4, color='#764ba2'),
-            hovertemplate='<b>MVRV Ratio</b><br>Date: %{x}<br>Value: %{y:.4f}<extra></extra>'
+            hovertemplate='<b>MVRV Ratio</b><br>%{x}<br>%{y:.4f}<extra></extra>'
         ))
     
     elif chart_type == "Area Chart":
@@ -275,30 +202,10 @@ if history:
             mode='lines',
             name='MVRV Ratio',
             line=dict(color='#667eea', width=2),
-            fill='tozeroy',
-            fillcolor='rgba(102, 126, 234, 0.3)',
-            hovertemplate='<b>MVRV Ratio</b><br>Date: %{x}<br>Value: %{y:.4f}<extra></extra>'
+            fill='tonexty',
+            fillcolor='rgba(102, 126, 234, 0.1)',
+            hovertemplate='<b>MVRV Ratio</b><br>%{x}<br>%{y:.4f}<extra></extra>'
         ))
-    
-    # Add chart type indicator with different colors
-    if chart_type == "Line Chart":
-        indicator_color = "blue"
-        indicator_bg = "rgba(102, 126, 234, 0.1)"
-    else:
-        indicator_color = "green"
-        indicator_bg = "rgba(76, 201, 196, 0.1)"
-        
-    fig.add_annotation(
-        text=f"📊 {chart_type}",
-        xref="paper", yref="paper",
-        x=0.02, y=0.98,
-        showarrow=False,
-        font=dict(size=14, color=indicator_color, family="Arial Black"),
-        bgcolor=indicator_bg,
-        bordercolor=indicator_color,
-        borderwidth=2,
-        borderpad=4
-    )
     
     # Add reference zones with better colors
     fig.add_hline(y=1.0, line_dash="solid", line_color="gray", line_width=2,
@@ -321,7 +228,7 @@ if history:
     # Enhanced layout
     fig.update_layout(
         title=dict(
-            text=f"Bitcoin MVRV Ratio - {timeframe} ({chart_type})",
+            text=f"Bitcoin MVRV Ratio - {timeframe}",
             font=dict(size=24, color='#333')
         ),
         xaxis=dict(
